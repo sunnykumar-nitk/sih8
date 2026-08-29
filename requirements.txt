@@ -1,0 +1,30 @@
+# Deployed API requirements ONLY -- kept lean deliberately.
+# Vercel Python Functions have a size limit; Jupyter's dependency tree
+# (ipykernel, tornado, etc.) has no business being in the deployed
+# function, so it lives in requirements-notebooks.txt instead.
+
+# Core backend
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9
+
+# Data
+pandas>=2.2
+numpy>=1.26
+
+# Image/video analysis (heuristic detector + video frame extraction) -- REQUIRED
+opencv-python-headless>=4.9
+
+# PDF report generation
+reportlab>=4.1
+
+# Persistence (SQLite by default -- see backend/services/db_service.py)
+sqlalchemy>=2.0
+
+# Optional -- only needed once a real trained model exists (DEMO_MODE=false)
+# ultralytics>=8.2
+
+# Note: the online chatbot mode (Gemini) uses stdlib urllib, not the
+# google-generativeai SDK, to keep this dependency list lean for Vercel's
+# function size limit. Set GEMINI_API_KEY as an env var to enable it.

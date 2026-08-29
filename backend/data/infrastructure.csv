@@ -1,0 +1,10 @@
+name,type,lat,lon,importance
+City General Hospital,hospital,12.9100,74.7900,10
+District Fire Station,fire_station,12.9150,74.7850,9
+Central Police Station,police_station,12.9080,74.7920,8
+NH-66 Main Bridge,major_bridge,12.9200,74.8000,9
+NH-66 Highway Segment,main_highway,12.9250,74.8050,9
+Government Higher Secondary School,school,12.9050,74.7880,6
+Riverside Residential Block,residential_building,12.9180,74.7960,6
+Minor Access Road - Ward 4,minor_road,12.9300,74.8100,4
+Emergency Response Center,emergency_center,12.9120,74.7910,10

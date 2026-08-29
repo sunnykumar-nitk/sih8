@@ -1,0 +1,32 @@
+# Render.com deployment config (https://render.com) -- free tier web service.
+#
+# Why offer this alongside Vercel: Vercel Functions are serverless and
+# read-only except /tmp, which is wiped on every cold start -- so SQLite
+# "persistence" there only survives while a function instance stays warm.
+# Render's free web service is a long-running process with a normal
+# writable filesystem, so the same SQLite file genuinely persists for the
+# life of the service (it's still wiped on a redeploy unless you attach a
+# paid persistent disk, but it survives ordinary requests/idling/restarts
+# far more reliably than Vercel's /tmp).
+#
+# Deploy: push this repo to GitHub, then on Render: New -> Blueprint ->
+# point at the repo. Render reads this file automatically. Or skip the
+# blueprint and just create a Web Service manually with the same build/
+# start commands below.
+services:
+  - type: web
+    name: disaster-resilient-ai
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: CHAT_MODE_DEFAULT
+        value: "auto"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+    healthCheckPath: /api/health

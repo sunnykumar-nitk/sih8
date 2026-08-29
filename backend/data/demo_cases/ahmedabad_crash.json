@@ -1,0 +1,30 @@
+{
+  "case_name": "ahmedabad_crash",
+  "disaster_type": "aircraft_crash",
+  "location_label": "Ahmedabad, Gujarat (demo coordinates)",
+  "description": "DEMO DATA. Simulated aircraft-crash-affected sites for demonstration. Note: this event type uses a different factor set (fire, smoke, debris field, secondary explosion risk) rather than flood/earthquake factors -- see config.DISASTER_FACTORS.",
+  "sites": [
+    {
+      "site_id": "AH_BUILDING_01",
+      "asset_type": "residential_building",
+      "damage_type": "fire",
+      "damage_severity": 9,
+      "accessibility": 3,
+      "disaster_conditions": 9,
+      "cascading_impact": 4,
+      "location": {"lat": 23.0225, "lon": 72.5714},
+      "notes": "Direct impact site; active fire risk, secondary explosion risk from nearby fuel."
+    },
+    {
+      "site_id": "AH_ROAD_01",
+      "asset_type": "minor_road",
+      "damage_type": "debris",
+      "damage_severity": 5,
+      "accessibility": 4,
+      "disaster_conditions": 7,
+      "cascading_impact": 2,
+      "location": {"lat": 23.0250, "lon": 72.5750},
+      "notes": "Debris field blocking emergency vehicle access route."
+    }
+  ]
+}

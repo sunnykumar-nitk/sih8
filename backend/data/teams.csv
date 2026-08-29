@@ -1,0 +1,6 @@
+team_id,specialization,equipment,lat,lon,available
+T1,structural,"drone,thermal_camera,laser_measure",12.9090,74.7890,true
+T2,road,"drone,gps",12.9200,74.7950,true
+T3,general,"camera,gps",12.9150,74.8000,true
+T4,fire,"thermal_camera,gas_detector",12.9110,74.7870,true
+T5,general,"camera,gps",12.9300,74.8150,false

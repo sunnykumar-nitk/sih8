@@ -1,0 +1,30 @@
+{
+  "case_name": "assam_flood",
+  "disaster_type": "flood",
+  "location_label": "Guwahati region, Assam (demo coordinates)",
+  "description": "DEMO DATA. Simulated flood-affected sites for demonstration -- upload real flood imagery via /api/upload to replace mock detections with live analysis.",
+  "sites": [
+    {
+      "site_id": "AS_ROAD_01",
+      "asset_type": "main_highway",
+      "damage_type": "flooding",
+      "damage_severity": 8,
+      "accessibility": 8,
+      "disaster_conditions": 9,
+      "cascading_impact": 5,
+      "location": {"lat": 26.1445, "lon": 91.7362},
+      "notes": "Primary evacuation route; currently underwater in parts."
+    },
+    {
+      "site_id": "AS_SCHOOL_01",
+      "asset_type": "school",
+      "damage_type": "flooding",
+      "damage_severity": 3,
+      "accessibility": 4,
+      "disaster_conditions": 6,
+      "cascading_impact": 1,
+      "location": {"lat": 26.1500, "lon": 91.7400},
+      "notes": "Being used as a temporary shelter."
+    }
+  ]
+}
