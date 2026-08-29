@@ -6,6 +6,16 @@ without touching the scoring code itself.
 """
 import os
 
+# Load a local .env file (if present) into the process environment so
+# `os.getenv(...)` below can see it. Deployment platforms (Vercel/Render)
+# inject real env vars directly and don't need this, so a missing .env file
+# or a missing python-dotenv install is not an error -- just a no-op.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # ---------------------------------------------------------------------------
 # Demo / mock mode
 # ---------------------------------------------------------------------------

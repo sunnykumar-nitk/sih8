@@ -37,6 +37,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Startup diagnostic: this is printed once, on server start, precisely
+# because chat_service.py's online mode fails SILENTLY (falls back to
+# offline rules) when no key is configured -- print here so "online chat
+# isn't working" has an obvious first thing to check instead of being a
+# silent runtime fallback.
+if config.GEMINI_API_KEY:
+    print(f"[chat] Gemini online mode: ENABLED (model={config.GEMINI_MODEL}, "
+          f"default_mode={config.CHAT_MODE_DEFAULT})")
+else:
+    print(f"[chat] Gemini online mode: DISABLED -- no GEMINI_API_KEY found in the "
+          f"environment. Offline rule-based chat still works. To enable online mode, "
+          f"set GEMINI_API_KEY in backend/.env (see .env.example) and restart.")
+
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(assessment.router, prefix="/api", tags=["assessment"])
 app.include_router(recommendations.router, prefix="/api", tags=["recommendations"])
