@@ -7,6 +7,17 @@ function isVideoFile(name) {
   return /\.(mp4|mov|avi|mkv|webm)$/i.test(name);
 }
 
+// Never render NaN / undefined / null / Infinity to the user -- show a
+// plain "Data unavailable" instead (see PROJECT feedback: "NaN" was showing
+// up for population density / households affected with no location).
+function _fmtStat(value, suffix) {
+  const n = Number(value);
+  if (value === undefined || value === null || !Number.isFinite(n)) {
+    return "Data unavailable";
+  }
+  return n.toLocaleString() + (suffix ? " " + suffix : "");
+}
+
 // --- Location picker + live population preview ---------------------------
 // Known demo disaster locations, so a click near them (or a preset button)
 // lands on a spot the population service actually has reference data for.
@@ -306,9 +317,9 @@ function renderResultCard(r) {
   const popHtml = popData.estimated_affected_population !== undefined ? `
     <div class="card-section">
       <h3>Population Context <span style="text-transform:none;color:${(popData.data_label||"").startsWith("REFERENCE") ? "var(--low)" : "#ffce6b"};font-weight:600;">(${popData.data_label || "unknown"})</span></h3>
-      <div class="stat-row"><span class="k">Estimated affected population</span><span class="v">${Number(popData.estimated_affected_population).toLocaleString()}</span></div>
-      <div class="stat-row"><span class="k">Population density</span><span class="v">${Number(popData.population_density).toLocaleString()} /km²</span></div>
-      <div class="stat-row"><span class="k">Households affected</span><span class="v">${Number(popData.households_affected).toLocaleString()}</span></div>
+      <div class="stat-row"><span class="k">Estimated affected population</span><span class="v">${_fmtStat(popData.estimated_affected_population)}</span></div>
+      <div class="stat-row"><span class="k">Population density</span><span class="v">${_fmtStat(popData.population_density, "/km²")}</span></div>
+      <div class="stat-row"><span class="k">Households affected</span><span class="v">${_fmtStat(popData.households_affected)}</span></div>
       ${coverage ? `
       <div class="stat-row" style="margin-top:8px;"><span class="k">Estimated affected area (from imagery)</span><span class="v">${coverage.estimated_affected_area_km2} km²</span></div>
       <div class="stat-row"><span class="k">Visible damage coverage</span><span class="v">${(coverage.avg_affected_fraction * 100).toFixed(0)}% of surveyed area</span></div>
@@ -328,7 +339,7 @@ function renderResultCard(r) {
         <div class="card-stats">
           <div class="stat-row"><span class="k">Infrastructure</span><span class="v">${(r.asset_type || "-").toUpperCase()}</span></div>
           <div class="stat-row"><span class="k">Damage</span><span class="v">${(r.dominant_damage_type || "-").replace(/_/g, " ")}</span></div>
-          <div class="stat-row"><span class="k">Severity</span><span class="v">${r.severity_score} / 10 (${r.severity_label})</span></div>
+          <div class="stat-row"><span class="k">Severity</span><span class="v">${r.severity_score} / 10 &middot; ${r.severity_score_100 ?? Math.round((r.severity_score || 0) * 10 * 10) / 10} / 100 (${r.severity_label})</span></div>
           <div class="stat-row"><span class="k">Priority</span><span class="v">${r.priority_score} / 100</span></div>
           <div class="stat-row"><span class="k">Status</span><span class="v"><span class="status-pill" style="background:${color};color:#10131c;">${levelIcons[r.priority_level] || ""} ${r.priority_level}</span></span></div>
           <div class="stat-row" style="margin-top:10px;"><span class="k">AI Confidence</span><span class="v">${(r.ai_confidence * 100).toFixed(0)}%</span></div>

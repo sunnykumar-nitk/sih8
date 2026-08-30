@@ -80,6 +80,7 @@
 .r-header .r-brand .r-title-block .r-name { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
 .r-header .r-brand .r-title-block .r-name span { color: var(--r-orange); }
 .r-header .r-brand .r-title-block .r-tag { font-size: 11.5px; color: var(--r-sub); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-top: 2px; }
+.r-muted { font-size: 11.5px; color: var(--r-sub); font-weight: 500; }
 .r-header .r-meta { text-align: right; font-size: 12.5px; color: var(--r-sub); line-height: 1.7; }
 .r-header .r-meta b { color: var(--r-ink); }
 

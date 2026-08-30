@@ -211,6 +211,10 @@ async def upload_batch(
     site["disaster_factor_analysis"] = disaster_analysis
     site["nearby_critical_facilities"] = nearby_critical_names
     site["severity_score"] = severity["severity_score"]
+    # Damage severity is 0-10 internally; also expose a 0-100 version so the
+    # UI/AI Assistant can show it consistently alongside priority_score (0-100)
+    # without anyone re-deriving (or mis-deriving) the conversion themselves.
+    site["severity_score_100"] = round(min(10.0, max(0.0, severity["severity_score"])) * 10, 1)
     site["severity_label"] = severity["severity_label"]
     site["ai_confidence"] = severity["ai_confidence"]
     site["data_confidence_pct"] = round(site["data_confidence"] * 100, 1)

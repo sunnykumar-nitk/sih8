@@ -62,6 +62,10 @@ def assess_site(req: AssessRequest):
 
     priority_result = calculate_priority(site)
     site.update(priority_result)
+    # Same 0-100 normalization as the upload-batch flow -- keep the two
+    # entry points consistent (see chat_service._severity_100 / doc request
+    # to "calculate severity score also in 100").
+    site["severity_score_100"] = round(min(10.0, max(0.0, req.damage_severity)) * 10, 1)
     site["explanation"] = build_explanation(site, priority_result)
     site["cascading_explanation"] = build_cascading_explanation(site, site["nearby_critical_facilities"])
     site["population_data"] = pop

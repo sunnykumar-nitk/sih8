@@ -39,6 +39,11 @@ function escapeHtml(str) {
 function escapeAttr(str) { return escapeHtml(str); }
 
 function severityOf(site) { return site.severity_score ?? site.damage_severity ?? null; }
+function severityOf100(site) {
+  if (site.severity_score_100 !== undefined && site.severity_score_100 !== null) return site.severity_score_100;
+  const s10 = severityOf(site);
+  return s10 === null ? null : Math.round(s10 * 10 * 10) / 10;
+}
 function peopleAffected(site) { return site.population_data?.estimated_affected_population ?? 0; }
 function teamTotal(site) { return site.team_size?.total_personnel ?? null; }
 function actionText(site) {
@@ -126,7 +131,7 @@ function renderTable(sites) {
       <td class="r-rank">${i + 1}</td>
       <td>${escapeHtml(s.site_id)}</td>
       <td>${escapeHtml(s.asset_type || "-")}</td>
-      <td>${fmtScore10(severityOf(s))}</td>
+      <td>${fmtScore10(severityOf(s))} <span class="r-muted">(${fmtScore100(severityOf100(s))})</span></td>
       <td>${fmtNum(peopleAffected(s))}</td>
       <td>${fmtScore10(s.accessibility)}</td>
       <td>${fmtScore100(s.priority_score)}</td>
@@ -215,11 +220,15 @@ function drawCharts(sites) {
   const labels = sites.map(s => s.site_id);
   const levelColor = { CRITICAL: "#e5484d", HIGH: "#ff9f1c", MEDIUM: "#e0b400", LOW: "#2fa86a" };
 
+  // Per-bar risk color (red/orange/amber/green) instead of one flat orange,
+  // so a critical site's severity bar is visually distinct from a low one.
+  const barColors = sites.map(s => levelColor[s.priority_level] || "#ff7a30");
+
   const ctxSeverity = document.getElementById("chartSeverity");
   if (ctxSeverity) {
     CHART_INSTANCES.push(new Chart(ctxSeverity, {
       type: "bar",
-      data: { labels, datasets: [{ label: "Severity (0-10)", data: sites.map(s => severityOf(s) ?? 0), backgroundColor: "#ff7a30" }] },
+      data: { labels, datasets: [{ label: "Severity (0-10)", data: sites.map(s => severityOf(s) ?? 0), backgroundColor: barColors }] },
       options: { responsive: true, scales: { y: { beginAtZero: true, max: 10 } }, plugins: { legend: { display: false } } },
     }));
   }
@@ -242,7 +251,7 @@ function drawCharts(sites) {
   if (ctxPop) {
     CHART_INSTANCES.push(new Chart(ctxPop, {
       type: "bar",
-      data: { labels, datasets: [{ label: "People Affected", data: sites.map(peopleAffected), backgroundColor: "#4b8bff" }] },
+      data: { labels, datasets: [{ label: "People Affected", data: sites.map(peopleAffected), backgroundColor: barColors }] },
       options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } },
     }));
   }
@@ -251,7 +260,7 @@ function drawCharts(sites) {
   if (ctxTeams) {
     CHART_INSTANCES.push(new Chart(ctxTeams, {
       type: "bar",
-      data: { labels, datasets: [{ label: "Personnel", data: sites.map(s => teamTotal(s) ?? 0), backgroundColor: "#2fa86a" }] },
+      data: { labels, datasets: [{ label: "Personnel", data: sites.map(s => teamTotal(s) ?? 0), backgroundColor: barColors }] },
       options: { responsive: true, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } }, indexAxis: "y" },
     }));
   }
@@ -280,7 +289,7 @@ function openDrawer(s) {
       <h3>${escapeHtml(s.site_id)}</h3>
       ${badge(s.priority_level)}
       <div class="r-drawer-grid">
-        <div class="r-stat"><div class="r-stat-label">Severity</div><div class="r-stat-value">${fmtScore10(severityOf(s))}</div></div>
+        <div class="r-stat"><div class="r-stat-label">Severity</div><div class="r-stat-value">${fmtScore10(severityOf(s))} <span class="r-muted">(${fmtScore100(severityOf100(s))})</span></div></div>
         <div class="r-stat"><div class="r-stat-label">Population Impact</div><div class="r-stat-value">${fmtScore10(s.population_impact)}</div></div>
         <div class="r-stat"><div class="r-stat-label">Infrastructure Importance</div><div class="r-stat-value">${fmtScore10(s.infrastructure_importance)}</div></div>
         <div class="r-stat"><div class="r-stat-label">Accessibility</div><div class="r-stat-value">${fmtScore10(s.accessibility)}</div></div>

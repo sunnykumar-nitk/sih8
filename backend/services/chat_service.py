@@ -47,10 +47,20 @@ def _fmt_pop(n: Any) -> str:
         return "an unknown number of"
 
 
+def _severity_100(site: Dict[str, Any]) -> float:
+    """damage_severity is stored 0-10; also express it 0-100 for consistency
+    with priority_score, as requested for the AI Assistant / report UI."""
+    stored = site.get("severity_score_100")
+    if stored is not None:
+        return stored
+    return round(max(0.0, min(site.get("damage_severity", 0), 10.0)) * 10, 1)
+
+
 def _site_summary_line(site: Dict[str, Any]) -> str:
     return (
         f"{site.get('site_id')}: priority {site.get('priority_score')}/100 "
-        f"({site.get('priority_level')}), severity {site.get('damage_severity')}/10"
+        f"({site.get('priority_level')}), severity {site.get('damage_severity')}/10 "
+        f"({_severity_100(site)}/100)"
     )
 
 
@@ -82,6 +92,36 @@ def _find_site(sites: Dict[str, Dict[str, Any]], name_fragment: str) -> Optional
     return None
 
 
+# Generic references that mean "the top-ranked/most urgent site" rather than
+# naming an actual site_id -- e.g. "why is the top site ranked highest?",
+# "which site should teams visit first?". Previously these fell straight
+# through to the generic fallback because _find_site() found nothing for a
+# fragment like "the top site ranked".
+_TOP_SITE_WORDS = (
+    "top site", "top-ranked", "top ranked", "highest priority site",
+    "highest ranked", "the top", "most critical", "most urgent",
+    "worst site", "worst-affected", "the first site", "top priority",
+)
+
+
+def _resolve_site_reference(sites: Dict[str, Dict[str, Any]], name_fragment: str) -> Optional[Dict[str, Any]]:
+    """Like _find_site, but also resolves generic phrases ("the top site",
+    "highest priority site") to the current #1-ranked site by priority_score."""
+    if not sites:
+        return None
+    frag = (name_fragment or "").strip().lower()
+    if any(w in frag for w in _TOP_SITE_WORDS) or frag in ("it", "this", "that"):
+        return max(sites.values(), key=lambda s: s.get("priority_score", 0))
+    site = _find_site(sites, name_fragment)
+    if site:
+        return site
+    # last resort: if the fragment mentions "site"/"location"/"place" generically
+    # with no other sites matching, assume they mean the top one
+    if any(w in frag for w in ("site", "location", "place")) and len(sites) >= 1:
+        return max(sites.values(), key=lambda s: s.get("priority_score", 0))
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Rule-based (offline) question handlers
 # ---------------------------------------------------------------------------
@@ -90,15 +130,17 @@ def _find_site(sites: Dict[str, Dict[str, Any]], name_fragment: str) -> Optional
 # answer with -- the caller falls through to the next rule / online / fallback.
 
 def _rule_why_critical(m, sites, teams):
-    site = _find_site(sites, m.group(1))
+    site = _resolve_site_reference(sites, m.group(1))
     if not site:
         return None
     breakdown = site.get("breakdown", {})
     top = sorted(breakdown.items(), key=lambda kv: -kv[1])[:3]
     top_text = ", ".join(f"{k.replace('_', ' ')} ({v} pts)" for k, v in top)
+    severity_100 = site.get("severity_score_100", round(site.get("damage_severity", 0) * 10, 1))
     answer = (
         f"{site.get('site_id')} is {site.get('priority_level')} priority "
-        f"({site.get('priority_score')}/100). The largest contributors are: {top_text}. "
+        f"({site.get('priority_score')}/100, damage severity {site.get('damage_severity')}/10 "
+        f"= {severity_100}/100). The largest contributors are: {top_text}. "
     )
     if site.get("cascading_explanation"):
         answer += site["cascading_explanation"]
@@ -273,7 +315,7 @@ def _rule_affects_facility(m, sites, teams):
 
 
 def _rule_what_if_blocked(m, sites, teams):
-    site = _find_site(sites, m.group(1))
+    site = _resolve_site_reference(sites, m.group(1))
     if not site:
         return None
     explanation = site.get("cascading_explanation", "No cascading dependency data available.")
@@ -331,6 +373,67 @@ def _rule_lowest_priority(m, sites, teams):
         "answer": f"{lowest.get('site_id')} has the lowest priority, at {lowest.get('priority_score')}/100 ({lowest.get('priority_level')}).",
         "supporting_factors": ["priority_score"],
         "data_sources": ["priority queue"],
+    }
+
+
+def _rule_highest_priority(m, sites, teams):
+    if not sites:
+        return None
+    top = max(sites.values(), key=lambda s: s.get("priority_score", 0))
+    breakdown = top.get("breakdown", {})
+    top_factors = sorted(breakdown.items(), key=lambda kv: -kv[1])[:2]
+    factors_text = ", ".join(k.replace("_", " ") for k, v in top_factors)
+    extra = f" -- driven mainly by {factors_text}." if factors_text else ""
+    return {
+        "answer": (
+            f"{top.get('site_id')} has the highest priority, at {top.get('priority_score')}/100 "
+            f"({top.get('priority_level')}), damage severity {top.get('damage_severity')}/10 "
+            f"({_severity_100(top)}/100){extra}"
+        ),
+        "supporting_factors": [k for k, v in top_factors] or ["priority_score"],
+        "data_sources": ["priority queue"],
+    }
+
+
+def _rule_visit_first(m, sites, teams):
+    """'Which site should emergency teams visit/inspect/respond to first?'"""
+    if not sites:
+        return None
+    top = max(sites.values(), key=lambda s: s.get("priority_score", 0))
+    return {
+        "answer": (
+            f"Emergency teams should visit {top.get('site_id')} first. It has the highest priority "
+            f"({top.get('priority_score')}/100, {top.get('priority_level')}) and damage severity "
+            f"{top.get('damage_severity')}/10 ({_severity_100(top)}/100). Recommended team: "
+            f"{_fmt_team_size(top.get('team_size'))}."
+        ),
+        "supporting_factors": ["priority_score", "priority_level"],
+        "data_sources": [f"priority queue", f"team_sizing for {top.get('site_id')}"],
+    }
+
+
+def _rule_team_allocation(m, sites, teams):
+    """'How should teams be allocated?' -- explain the allocation logic using
+    real per-site team_size data, ordered by priority."""
+    if not sites:
+        return None
+    ranked = sorted(sites.values(), key=lambda s: -s.get("priority_score", 0))
+    lines = []
+    for s in ranked:
+        lines.append(
+            f"{s.get('site_id')} ({s.get('priority_level')}, {s.get('priority_score')}/100): "
+            f"{_fmt_team_size(s.get('team_size'))}"
+        )
+    text = "; ".join(lines)
+    return {
+        "answer": (
+            f"Teams should be allocated by priority order, not split evenly: {text}. "
+            "Higher-priority / more severe sites get sized-up teams (more structural engineers, "
+            "medical personnel, or drone operators) while lower-priority sites can be handled by "
+            "smaller general-responder teams."
+        ),
+        "supporting_factors": ["priority_score", "team_size"],
+        "data_sources": ["priority queue", "team_sizing for all sites"],
     }
 
 
@@ -401,7 +504,10 @@ def _rule_severity_extreme(m, sites, teams):
         else min(sites.values(), key=lambda s: s.get("damage_severity", 0))
     label = "highest" if want_highest else "lowest"
     return {
-        "answer": f"{site.get('site_id')} has the {label} severity score, at {site.get('damage_severity')}/10.",
+        "answer": (
+            f"{site.get('site_id')} has the {label} severity score, at "
+            f"{site.get('damage_severity')}/10 ({_severity_100(site)}/100)."
+        ),
         "supporting_factors": ["damage_severity"],
         "data_sources": [f"assessment for {site.get('site_id')}"],
     }
@@ -484,12 +590,15 @@ _RULES = [
     # More specific "ranked above" comparison must be checked BEFORE the
     # generic "why is X critical" pattern, since both start with "why is".
     (re.compile(r"why is\s+(.+?)\s+ranked above\s+(.+?)\??$", re.I), _rule_compare_ranking),
-    (re.compile(r"why is[' ]s?\s*(.+?)\s+(?:critical|priority|the highest)", re.I), _rule_why_critical),
+    (re.compile(r"why is[' ]s?\s*(.+?)\s+(?:critical|priority|ranked highest|the highest|highest)", re.I), _rule_why_critical),
     (re.compile(r"complete (?:emergency )?response plan|recommended response plan|what should emergency teams do first", re.I), _rule_response_plan),
     (re.compile(r"top\s+(\w+)\s+(?:sites?|priorit(?:y|ies))", re.I), _rule_top_n),
     (re.compile(r"how many (?:sites? )?(?:have been |are )?assessed", re.I), _rule_total_assessed),
     (re.compile(r"overall (?:disaster )?situation", re.I), _rule_overall_situation),
     (re.compile(r"lowest priority", re.I), _rule_lowest_priority),
+    (re.compile(r"highest priority", re.I), _rule_highest_priority),
+    (re.compile(r"(?:visit|inspect|respond to|go to|handle)\s+first|first\s+(?:priority|response)", re.I), _rule_visit_first),
+    (re.compile(r"how should teams? be (?:allocated|distributed|assigned)|team allocation", re.I), _rule_team_allocation),
     (re.compile(r"immediate attention|most dangerous", re.I), _rule_immediate_attention),
     (re.compile(r"how many sites?\s+(?:are\s+)?(?:classified as\s+)?(critical|high|medium|low)(?:\s+priority)?", re.I), _rule_count_by_level),
     (re.compile(r"(?:highest|largest|most)\s+population", re.I), _rule_highest_population),
