@@ -155,10 +155,10 @@ function renderCharts() {
   return `
     <div class="r-section-title">Visual Summary</div>
     <div class="r-charts-grid">
-      <div class="r-chart-box"><h4>Severity by Site</h4><canvas id="chartSeverity"></canvas></div>
-      <div class="r-chart-box"><h4>Priority Distribution</h4><canvas id="chartPriority"></canvas></div>
-      <div class="r-chart-box"><h4>Population Impact by Site</h4><canvas id="chartPopulation"></canvas></div>
-      <div class="r-chart-box"><h4>Recommended Team Size by Site</h4><canvas id="chartTeams"></canvas></div>
+      <div class="r-chart-box"><h4>Severity by Site</h4><div class="r-chart-canvas-wrap"><canvas id="chartSeverity"></canvas></div></div>
+      <div class="r-chart-box"><h4>Priority Distribution</h4><div class="r-chart-canvas-wrap"><canvas id="chartPriority"></canvas></div></div>
+      <div class="r-chart-box"><h4>Population Impact by Site</h4><div class="r-chart-canvas-wrap"><canvas id="chartPopulation"></canvas></div></div>
+      <div class="r-chart-box"><h4>Recommended Team Size by Site</h4><div class="r-chart-canvas-wrap"><canvas id="chartTeams"></canvas></div></div>
     </div>`;
 }
 
@@ -215,21 +215,32 @@ function destroyCharts() {
 
 function drawCharts(sites) {
   destroyCharts();
-  if (typeof Chart === "undefined" || sites.length === 0) return;
+  const boxes = document.querySelectorAll(".r-chart-canvas-wrap");
+  if (typeof Chart === "undefined") {
+    // Chart.js failed to load (e.g. CDN blocked) -- say so instead of a
+    // silent blank box, which is what "not generating visuals" looked like.
+    boxes.forEach(b => { b.innerHTML = `<div class="r-chart-empty">Chart library failed to load -- check your network/CDN access.</div>`; });
+    return;
+  }
+  if (sites.length === 0) {
+    boxes.forEach(b => { b.innerHTML = `<div class="r-chart-empty">No sites selected for this report.</div>`; });
+    return;
+  }
 
   const labels = sites.map(s => s.site_id);
-  const levelColor = { CRITICAL: "#e5484d", HIGH: "#ff9f1c", MEDIUM: "#e0b400", LOW: "#2fa86a" };
+  const levelColor = { CRITICAL: "#DC2626", HIGH: "#F97316", MEDIUM: "#F59E0B", LOW: "#16A34A" };
 
   // Per-bar risk color (red/orange/amber/green) instead of one flat orange,
   // so a critical site's severity bar is visually distinct from a low one.
-  const barColors = sites.map(s => levelColor[s.priority_level] || "#ff7a30");
+  const barColors = sites.map(s => levelColor[s.priority_level] || "#F97316");
+  const commonOpts = { responsive: true, maintainAspectRatio: false };
 
   const ctxSeverity = document.getElementById("chartSeverity");
   if (ctxSeverity) {
     CHART_INSTANCES.push(new Chart(ctxSeverity, {
       type: "bar",
       data: { labels, datasets: [{ label: "Severity (0-10)", data: sites.map(s => severityOf(s) ?? 0), backgroundColor: barColors }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 10 } }, plugins: { legend: { display: false } } },
+      options: { ...commonOpts, scales: { y: { beginAtZero: true, max: 10 } }, plugins: { legend: { display: false } } },
     }));
   }
 
@@ -243,7 +254,7 @@ function drawCharts(sites) {
         labels: Object.keys(counts),
         datasets: [{ data: Object.values(counts), backgroundColor: Object.keys(counts).map(k => levelColor[k]) }],
       },
-      options: { responsive: true },
+      options: { ...commonOpts },
     }));
   }
 
@@ -252,7 +263,7 @@ function drawCharts(sites) {
     CHART_INSTANCES.push(new Chart(ctxPop, {
       type: "bar",
       data: { labels, datasets: [{ label: "People Affected", data: sites.map(peopleAffected), backgroundColor: barColors }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } },
+      options: { ...commonOpts, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } },
     }));
   }
 
@@ -261,7 +272,7 @@ function drawCharts(sites) {
     CHART_INSTANCES.push(new Chart(ctxTeams, {
       type: "bar",
       data: { labels, datasets: [{ label: "Personnel", data: sites.map(s => teamTotal(s) ?? 0), backgroundColor: barColors }] },
-      options: { responsive: true, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } }, indexAxis: "y" },
+      options: { ...commonOpts, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } }, indexAxis: "y" },
     }));
   }
 }
