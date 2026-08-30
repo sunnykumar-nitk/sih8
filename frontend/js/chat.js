@@ -1,11 +1,16 @@
 const API_BASE_C = "/api";
 
 const SUGGESTED_QUESTIONS = [
+  "Which site has the highest priority?",
   "Why is the top site ranked highest?",
   "Which site has the highest population impact?",
   "Which site is hardest to reach?",
   "Does any site affect a hospital?",
   "How many sites need a structural engineer?",
+  "Which site should emergency teams visit first?",
+  "How should teams be allocated?",
+  "Which site has the lowest priority?",
+  "Give me a complete emergency response plan.",
 ];
 
 let currentMode = "auto";

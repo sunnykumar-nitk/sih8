@@ -54,6 +54,18 @@ def _site_summary_line(site: Dict[str, Any]) -> str:
     )
 
 
+def _fmt_team_size(team_size: Any) -> str:
+    """team_size (from recommendation/team_sizing.py) is a dict like
+    {"roles": {...}, "total_personnel": 8, "reason": "..."} -- render it as
+    readable text instead of dumping the raw dict into a chat answer."""
+    if not isinstance(team_size, dict):
+        return "not yet calculated" if team_size is None else str(team_size)
+    total = team_size.get("total_personnel")
+    roles = team_size.get("roles", {})
+    roles_text = ", ".join(f"{v} {k.replace('_', ' ')}" for k, v in roles.items()) if roles else ""
+    return f"{total} personnel ({roles_text})" if roles_text else f"{total} personnel"
+
+
 def _find_site(sites: Dict[str, Dict[str, Any]], name_fragment: str) -> Optional[Dict[str, Any]]:
     """Case-insensitive, substring match -- questions rarely use the exact site_id casing."""
     name_fragment = name_fragment.strip().lower()
@@ -178,21 +190,41 @@ def _rule_which_team_first(m, sites, teams):
 def _rule_structural_team_site(m, sites, teams):
     if not sites:
         return None
+    # NOTE: earlier versions of this rule checked `dominant_damage_type`,
+    # a field this project's /api/assess schema never actually produces
+    # (that name belongs to a future YOLO-detection integration) -- so the
+    # rule silently matched nothing, always falling through to Gemini or
+    # the generic fallback. This schema's real signal for "needs a
+    # structural engineer" is asset_type (buildings/bridges, not roads)
+    # combined with meaningful damage_severity.
+    STRUCTURAL_ASSET_TYPES = {
+        "major_bridge", "residential_building", "hospital", "school",
+        "fire_station", "police_station", "emergency_center", "building",
+    }
     candidates = [
         s for s in sites.values()
-        if s.get("dominant_damage_type") in ("structural_damage", "collapse", "crack")
+        if s.get("asset_type") in STRUCTURAL_ASSET_TYPES and s.get("damage_severity", 0) >= 6
     ]
     if not candidates:
-        return None
-    top = max(candidates, key=lambda s: s.get("priority_score", 0))
+        return {
+            "answer": "No currently assessed site needs a structural engineering team "
+                      "(none combine a building/bridge-type asset with damage severity 6+/10).",
+            "supporting_factors": ["asset_type", "damage_severity"],
+            "data_sources": ["assessment for all sites"],
+        }
+    ranked = sorted(candidates, key=lambda s: -s.get("priority_score", 0))
+    top = ranked[0]
+    names = ", ".join(s.get("site_id", "?") for s in ranked)
     answer = (
-        f"{top.get('site_id')} should receive the structural team -- dominant damage is "
-        f"{top.get('dominant_damage_type')}, priority {top.get('priority_score')}/100."
+        f"{len(ranked)} site(s) need a structural engineering team: {names}. "
+        f"Highest priority among them is {top.get('site_id')} -- a "
+        f"{top.get('asset_type', 'structural asset').replace('_', ' ')} with damage severity "
+        f"{top.get('damage_severity')}/10, priority {top.get('priority_score')}/100."
     )
     return {
         "answer": answer,
-        "supporting_factors": ["dominant_damage_type", "priority_score"],
-        "data_sources": [f"detections for {top.get('site_id')}"],
+        "supporting_factors": ["asset_type", "damage_severity", "priority_score"],
+        "data_sources": [f"assessment for {s.get('site_id')}" for s in ranked],
     }
 
 
@@ -214,22 +246,27 @@ def _rule_how_many_inspectable(m, sites, teams):
     }
 
 
-def _rule_affects_hospital(m, sites, teams):
+def _rule_affects_facility(m, sites, teams):
     if not sites:
         return None
+    raw_kind = m.group(1).lower()
+    # normalize the match to the keyword actually likely to appear inside
+    # nearby_critical_facilities' names/types (from infrastructure.csv)
+    kind_keyword = "emergency" if "emergency" in raw_kind else raw_kind
+    kind_label = raw_kind
     candidates = [
         s for s in sites.values()
-        if any("hospital" in n.lower() for n in s.get("nearby_critical_facilities", []))
+        if any(kind_keyword in n.lower() for n in s.get("nearby_critical_facilities", []))
     ]
     if not candidates:
         return {
-            "answer": "No currently assessed site lists a hospital among its nearby critical facilities.",
+            "answer": f"No currently assessed site lists a {kind_label} among its nearby critical facilities.",
             "supporting_factors": [],
             "data_sources": ["nearby_critical_facilities for all sites"],
         }
     names = ", ".join(s.get("site_id", "?") for s in candidates)
     return {
-        "answer": f"These sites are near a hospital and could affect its access: {names}.",
+        "answer": f"Yes -- these sites are near a {kind_label} and could affect its access: {names}.",
         "supporting_factors": ["nearby_critical_facilities", "cascading_impact"],
         "data_sources": ["nearby_critical_facilities for all sites"],
     }
@@ -251,17 +288,221 @@ def _rule_what_if_blocked(m, sites, teams):
     }
 
 
+def _rule_total_assessed(m, sites, teams):
+    if not sites:
+        return {
+            "answer": "0 sites have been assessed yet.",
+            "supporting_factors": [],
+            "data_sources": ["SITE_STORE"],
+        }
+    return {
+        "answer": f"{len(sites)} site(s) have been assessed so far.",
+        "supporting_factors": [],
+        "data_sources": ["SITE_STORE"],
+    }
+
+
+def _rule_overall_situation(m, sites, teams):
+    if not sites:
+        return None
+    counts: Dict[str, int] = {}
+    for s in sites.values():
+        lvl = s.get("priority_level", "UNKNOWN")
+        counts[lvl] = counts.get(lvl, 0) + 1
+    ranked = sorted(sites.values(), key=lambda s: -s.get("priority_score", 0))
+    top = ranked[0]
+    counts_text = ", ".join(f"{n} {lvl}" for lvl, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+    answer = (
+        f"{len(sites)} site(s) assessed: {counts_text}. The highest-priority site is "
+        f"{top.get('site_id')} at {top.get('priority_score')}/100 ({top.get('priority_level')})."
+    )
+    return {
+        "answer": answer,
+        "supporting_factors": ["priority_level", "priority_score"],
+        "data_sources": ["SITE_STORE"],
+    }
+
+
+def _rule_lowest_priority(m, sites, teams):
+    if not sites:
+        return None
+    lowest = min(sites.values(), key=lambda s: s.get("priority_score", 0))
+    return {
+        "answer": f"{lowest.get('site_id')} has the lowest priority, at {lowest.get('priority_score')}/100 ({lowest.get('priority_level')}).",
+        "supporting_factors": ["priority_score"],
+        "data_sources": ["priority queue"],
+    }
+
+
+def _rule_immediate_attention(m, sites, teams):
+    if not sites:
+        return None
+    candidates = [s for s in sites.values() if s.get("priority_level") in ("CRITICAL", "HIGH")]
+    if not candidates:
+        return {
+            "answer": "No currently assessed site is classified CRITICAL or HIGH priority.",
+            "supporting_factors": ["priority_level"],
+            "data_sources": ["SITE_STORE"],
+        }
+    ranked = sorted(candidates, key=lambda s: -s.get("priority_score", 0))
+    lines = "; ".join(_site_summary_line(s) for s in ranked)
+    return {
+        "answer": f"{len(ranked)} site(s) require immediate attention: {lines}.",
+        "supporting_factors": ["priority_level", "priority_score"],
+        "data_sources": ["priority queue"],
+    }
+
+
+_LEVEL_WORDS = {"critical": "CRITICAL", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
+
+
+def _rule_count_by_level(m, sites, teams):
+    if not sites:
+        return None
+    level = _LEVEL_WORDS.get(m.group(1).lower())
+    if not level:
+        return None
+    matching = [s for s in sites.values() if s.get("priority_level") == level]
+    names = ", ".join(s.get("site_id", "?") for s in matching) if matching else "none"
+    return {
+        "answer": f"{len(matching)} site(s) are classified as {level}: {names}.",
+        "supporting_factors": ["priority_level"],
+        "data_sources": ["SITE_STORE"],
+    }
+
+
+_NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
+
+
+def _rule_top_n(m, sites, teams):
+    if not sites:
+        return None
+    raw = m.group(1).lower()
+    n = _NUMBER_WORDS.get(raw)
+    if n is None:
+        try:
+            n = int(raw)
+        except ValueError:
+            return None
+    ranked = sorted(sites.values(), key=lambda s: -s.get("priority_score", 0))[:n]
+    lines = "; ".join(_site_summary_line(s) for s in ranked)
+    return {
+        "answer": f"Top {len(ranked)}: {lines}.",
+        "supporting_factors": ["priority_score"],
+        "data_sources": ["priority queue"],
+    }
+
+
+def _rule_severity_extreme(m, sites, teams):
+    if not sites:
+        return None
+    want_highest = "highest" in m.group(0).lower()
+    site = max(sites.values(), key=lambda s: s.get("damage_severity", 0)) if want_highest \
+        else min(sites.values(), key=lambda s: s.get("damage_severity", 0))
+    label = "highest" if want_highest else "lowest"
+    return {
+        "answer": f"{site.get('site_id')} has the {label} severity score, at {site.get('damage_severity')}/10.",
+        "supporting_factors": ["damage_severity"],
+        "data_sources": [f"assessment for {site.get('site_id')}"],
+    }
+
+
+def _rule_easiest_to_reach(m, sites, teams):
+    if not sites:
+        return None
+    # accessibility is HIGHER = HARDER to reach in this schema's convention
+    # (see recommendation/scoring.py's docstring) -- so "easiest" is the min.
+    site = min(sites.values(), key=lambda s: s.get("accessibility", 5))
+    return {
+        "answer": f"{site.get('site_id')} is the easiest to reach, with an accessibility score of {site.get('accessibility')}/10 (lower = easier).",
+        "supporting_factors": ["accessibility"],
+        "data_sources": [f"assessment for {site.get('site_id')}"],
+    }
+
+
+def _rule_teams_required(m, sites, teams):
+    if not sites:
+        return None
+    critical_and_high = [s for s in sites.values() if s.get("priority_level") in ("CRITICAL", "HIGH")]
+    registered = len(teams)
+    recommended_min = max(len(critical_and_high), 1)
+    if registered:
+        answer = (
+            f"{registered} team(s) are currently registered. Based on the {len(critical_and_high)} "
+            f"CRITICAL/HIGH priority site(s) assessed, at least {recommended_min} team(s) are recommended "
+            f"if each handles one site at a time."
+        )
+    else:
+        answer = (
+            f"No teams are registered yet via POST /api/teams. Based on the {len(critical_and_high)} "
+            f"CRITICAL/HIGH priority site(s) assessed, at least {recommended_min} team(s) are recommended."
+        )
+    return {
+        "answer": answer,
+        "supporting_factors": ["priority_level"],
+        "data_sources": ["TEAM_STORE", "priority queue"],
+    }
+
+
+def _rule_personnel_top_site(m, sites, teams):
+    if not sites:
+        return None
+    top = max(sites.values(), key=lambda s: s.get("priority_score", 0))
+    return {
+        "answer": (
+            f"{top.get('site_id')} (the highest-priority site, {top.get('priority_score')}/100) "
+            f"has a recommended team size of {_fmt_team_size(top.get('team_size'))}."
+        ),
+        "supporting_factors": ["team_size", "priority_score"],
+        "data_sources": [f"team_sizing for {top.get('site_id')}"],
+    }
+
+
+def _rule_response_plan(m, sites, teams):
+    if not sites:
+        return None
+    ranked = sorted(sites.values(), key=lambda s: -s.get("priority_score", 0))
+    top3 = ranked[:3]
+    steps = []
+    for i, s in enumerate(top3, 1):
+        steps.append(
+            f"{i}. {s.get('site_id')} ({s.get('priority_level')}, {s.get('priority_score')}/100) -- "
+            f"recommended team size {_fmt_team_size(s.get('team_size'))}."
+        )
+    remaining = len(ranked) - len(top3)
+    plan = "\n".join(steps)
+    if remaining > 0:
+        plan += f"\nThe remaining {remaining} lower-priority site(s) should be reassessed as CRITICAL/HIGH sites are cleared."
+    return {
+        "answer": f"Recommended response plan, in priority order:\n{plan}",
+        "supporting_factors": ["priority_score", "team_size"],
+        "data_sources": ["priority queue", "team_sizing for top sites"],
+    }
+
+
 _RULES = [
     # More specific "ranked above" comparison must be checked BEFORE the
     # generic "why is X critical" pattern, since both start with "why is".
     (re.compile(r"why is\s+(.+?)\s+ranked above\s+(.+?)\??$", re.I), _rule_compare_ranking),
     (re.compile(r"why is[' ]s?\s*(.+?)\s+(?:critical|priority|the highest)", re.I), _rule_why_critical),
+    (re.compile(r"complete (?:emergency )?response plan|recommended response plan|what should emergency teams do first", re.I), _rule_response_plan),
+    (re.compile(r"top\s+(\w+)\s+(?:sites?|priorit(?:y|ies))", re.I), _rule_top_n),
+    (re.compile(r"how many (?:sites? )?(?:have been |are )?assessed", re.I), _rule_total_assessed),
+    (re.compile(r"overall (?:disaster )?situation", re.I), _rule_overall_situation),
+    (re.compile(r"lowest priority", re.I), _rule_lowest_priority),
+    (re.compile(r"immediate attention|most dangerous", re.I), _rule_immediate_attention),
+    (re.compile(r"how many sites?\s+(?:are\s+)?(?:classified as\s+)?(critical|high|medium|low)(?:\s+priority)?", re.I), _rule_count_by_level),
     (re.compile(r"(?:highest|largest|most)\s+population", re.I), _rule_highest_population),
+    (re.compile(r"highest severity", re.I), _rule_severity_extreme),
+    (re.compile(r"lowest severity", re.I), _rule_severity_extreme),
     (re.compile(r"hardest to reach", re.I), _rule_hardest_to_reach),
+    (re.compile(r"easiest to reach", re.I), _rule_easiest_to_reach),
     (re.compile(r"which site should team\s+(\S+)", re.I), _rule_which_team_first),
-    (re.compile(r"structural team", re.I), _rule_structural_team_site),
+    (re.compile(r"structural (?:team|engineer)", re.I), _rule_structural_team_site),
+    (re.compile(r"how many teams?\s+(?:are\s+)?required", re.I), _rule_teams_required),
+    (re.compile(r"how many (?:personnel|people)\s+(?:should be\s+)?assigned", re.I), _rule_personnel_top_site),
     (re.compile(r"how many sites.*?(\d+)\s+teams?", re.I), _rule_how_many_inspectable),
-    (re.compile(r"infrastructure affects? a hospital|affects? .*hospital", re.I), _rule_affects_hospital),
+    (re.compile(r"affects?\s+an?\s+(hospital|school|emergency facility|emergency center)", re.I), _rule_affects_facility),
     (re.compile(r"what happens if\s+(.+?)\s+(?:is\s+)?(?:closed|blocked)", re.I), _rule_what_if_blocked),
 ]
 
@@ -282,7 +523,7 @@ def answer_offline(question: str, sites: Dict[str, Any], teams: Dict[str, Any]) 
     return None
 
 
-def _offline_fallback(question: str, sites: Dict[str, Any], site_id: Optional[str]) -> Dict[str, Any]:
+def _offline_fallback(question: str, sites: Dict[str, Any], site_id: Optional[str], online_attempted: bool = False) -> Dict[str, Any]:
     """Last resort when no rule matches and no online key is configured (or online failed):
     give a useful, honest, data-grounded summary instead of a hard failure."""
     if site_id and site_id in sites:
@@ -307,11 +548,20 @@ def _offline_fallback(question: str, sites: Dict[str, Any], site_id: Optional[st
             "Run an assessment via /api/upload-batch or /api/assess first."
         )
         sources = []
+    # This used to unconditionally say "no online mode used" even when
+    # online mode WAS selected/attempted and silently failed (missing key,
+    # network error, bad Gemini response) -- misleading exactly in the
+    # situation someone would be debugging "why isn't online working".
+    if online_attempted:
+        note = ("Online mode was attempted but did not return a usable answer (check GEMINI_API_KEY "
+                "and server logs) -- falling back to this generic data summary.")
+    else:
+        note = "No matching question pattern and no online mode used -- this is a generic data summary, not a targeted answer."
     return {
         "answer": answer,
         "supporting_factors": [],
         "data_sources": sources,
-        "confidence_note": "No matching question pattern and no online mode used -- this is a generic data summary, not a targeted answer.",
+        "confidence_note": note,
         "mode_used": "offline_fallback",
     }
 
@@ -336,17 +586,17 @@ def _build_context(sites: Dict[str, Any], teams: Dict[str, Any], site_id: Option
     def _slim_site(s: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "site_id": s.get("site_id"),
+            "asset_type": s.get("asset_type"),
             "priority_score": s.get("priority_score"),
             "priority_level": s.get("priority_level"),
-            "severity_score": s.get("damage_severity"),
+            "damage_severity": s.get("damage_severity"),
+            "disaster_conditions": s.get("disaster_conditions"),
             "breakdown": s.get("breakdown"),
             "population_data": s.get("population_data"),
             "team_size": s.get("team_size"),
             "accessibility": s.get("accessibility"),
             "cascading_explanation": s.get("cascading_explanation"),
             "nearby_critical_facilities": s.get("nearby_critical_facilities"),
-            "dominant_damage_type": s.get("dominant_damage_type"),
-            "disaster_type": s.get("disaster_type"),
         }
 
     if site_id and site_id in sites:
@@ -417,11 +667,11 @@ def answer_question(
 
     if mode == "offline":
         result = answer_offline(question, sites, teams)
-        return result or _offline_fallback(question, sites, site_id)
+        return result or _offline_fallback(question, sites, site_id, online_attempted=False)
 
     if mode == "online":
         result = answer_online(question, sites, teams, site_id)
-        return result or _offline_fallback(question, sites, site_id)
+        return result or _offline_fallback(question, sites, site_id, online_attempted=True)
 
     # auto
     result = answer_offline(question, sites, teams)
@@ -430,4 +680,5 @@ def answer_question(
     result = answer_online(question, sites, teams, site_id)
     if result:
         return result
-    return _offline_fallback(question, sites, site_id)
+    online_was_attempted = bool(config.GEMINI_API_KEY)
+    return _offline_fallback(question, sites, site_id, online_attempted=online_was_attempted)

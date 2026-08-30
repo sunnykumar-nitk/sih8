@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from recommendation.scoring import calculate_priority
-from recommendation.triage import build_explanation
+from recommendation.triage import build_explanation, build_cascading_explanation
 from services.gis_service import get_importance_score, find_nearby_critical_facilities
 from services.population_service import get_population_impact
 from recommendation.team_sizing import estimate_team_size
@@ -51,10 +51,19 @@ def assess_site(req: AssessRequest):
     site["population_impact"] = min(10, pop["estimated_affected_population"] / 5000)
     site["critical_facility_impact"] = min(10, len(nearby_critical) * 3)
     site["human_impact"] = site["population_impact"]
+    # Previously computed but never saved onto the site record -- meant
+    # chat_service.py's "does any site affect a hospital?" and "what
+    # happens if X is blocked?" handlers always looked at an empty list /
+    # missing key, regardless of what find_nearby_critical_facilities()
+    # actually found. Save the real facility names + the explanation
+    # sentence so both offline rules and the online Gemini context have
+    # real data instead of silently-empty fields.
+    site["nearby_critical_facilities"] = [f["name"] for f in nearby_critical]
 
     priority_result = calculate_priority(site)
     site.update(priority_result)
     site["explanation"] = build_explanation(site, priority_result)
+    site["cascading_explanation"] = build_cascading_explanation(site, site["nearby_critical_facilities"])
     site["population_data"] = pop
     site["team_size"] = estimate_team_size(
         damage_type=req.asset_type,

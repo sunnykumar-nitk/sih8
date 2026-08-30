@@ -20,8 +20,16 @@ opencv-python-headless>=4.9
 # PDF report generation
 reportlab>=4.1
 
-# Persistence (SQLite by default -- see backend/services/db_service.py)
+# Persistence (SQLite by default -- see backend/services/db_service.py).
+# psycopg2-binary is also included so DATABASE_URL can point at a real
+# hosted Postgres (Neon/Supabase free tier) instead -- REQUIRED on Vercel
+# if you don't want assessed sites to disappear between requests (see
+# config.py's USING_EPHEMERAL_STORAGE / README.md "Persistence on Vercel").
+# psycopg2-binary matches SQLAlchemy's default dialect for a plain
+# "postgresql://..." URL -- exactly what Neon/Supabase hand you -- with no
+# URL rewriting needed.
 sqlalchemy>=2.0
+psycopg2-binary>=2.9
 
 # Optional -- only needed once a real trained model exists (DEMO_MODE=false)
 # ultralytics>=8.2

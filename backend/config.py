@@ -127,15 +127,35 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 # online only if a key is configured and the question matches no rule)
 CHAT_MODE_DEFAULT = os.getenv("CHAT_MODE_DEFAULT", "auto")
 
+CHAT_MODE_DEFAULT = os.getenv("CHAT_MODE_DEFAULT", "auto")
+
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
 # SQLite by default -- swap DATABASE_URL for a real Postgres URL in prod.
 # On Vercel/serverless, the deployed code directory is read-only and only
-# /tmp is writable, and /tmp is wiped on every cold start -- so persistence
-# there is "survives while the function instance is warm", not permanent.
-# For real persistence in production, point DATABASE_URL at a hosted DB
-# (Neon/Supabase Postgres, Turso, etc.) instead of the default SQLite file.
+# /tmp is writable, and /tmp is wiped on every cold start (and is NOT shared
+# between concurrent function instances) -- so an assessment saved by one
+# request can genuinely be gone by the time the next request (e.g. loading
+# the Team Allocation page) runs. This is the actual cause of "my assessed
+# site disappeared when I navigated away" -- it is not a bug in SITE_STORE
+# or db_service.py, it's SQLite-on-ephemeral-disk being the wrong tool for
+# a serverless deployment. The fix is DATABASE_URL pointing at a real
+# hosted Postgres (Neon/Supabase both have a free tier) -- see
+# .env.example and README.md "Persistence on Vercel" for setup steps.
 _DB_DIR = _WRITABLE_ROOT if IS_SERVERLESS else BASE_DIR
 _DEFAULT_DB_PATH = os.path.join(_DB_DIR, "disaster_ai.db")
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_DEFAULT_DB_PATH}")
+
+# Some hosted Postgres providers (Heroku-style URLs, some older Neon/Supabase
+# connection strings) hand out "postgres://", but SQLAlchemy 1.4+/2.x only
+# recognizes the "postgresql://" scheme and raises NoSuchModuleError on the
+# old one. Normalize it here so pasting either form into DATABASE_URL works.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# True when persistence will NOT survive a Vercel cold start -- i.e.
+# serverless + still on the default SQLite file, because no DATABASE_URL
+# was configured. main.py prints a loud startup warning when this is True,
+# same reasoning as the GEMINI_API_KEY diagnostic below it.
+USING_EPHEMERAL_STORAGE = IS_SERVERLESS and DATABASE_URL.startswith("sqlite")

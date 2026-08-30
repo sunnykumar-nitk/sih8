@@ -50,6 +50,17 @@ else:
           f"environment. Offline rule-based chat still works. To enable online mode, "
           f"set GEMINI_API_KEY in backend/.env (see .env.example) and restart.")
 
+if config.USING_EPHEMERAL_STORAGE:
+    print(f"[persistence] WARNING: running on Vercel with the default SQLite file "
+          f"at {config.DATABASE_URL} -- this lives on /tmp, which is wiped between "
+          f"cold starts and is NOT shared across concurrent function instances. "
+          f"Assessed sites and team registrations can appear to 'disappear' when "
+          f"you navigate between pages. Set DATABASE_URL to a hosted Postgres URL "
+          f"(Neon or Supabase free tier both work) in Vercel's project env vars to fix this.")
+else:
+    print(f"[persistence] {config.DATABASE_URL.split('://')[0]} at "
+          f"{'(hosted)' if not config.DATABASE_URL.startswith('sqlite') else config.DATABASE_URL}")
+
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(assessment.router, prefix="/api", tags=["assessment"])
 app.include_router(recommendations.router, prefix="/api", tags=["recommendations"])
