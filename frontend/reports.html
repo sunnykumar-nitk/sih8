@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/report.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 </head>
 <body>
   <div class="sidebar">
@@ -21,21 +23,30 @@
   </div>
 
   <div class="main">
-    <h1>Generate Report</h1>
-    <div class="subtitle">Bundles all assessed sites + team allocations into a PDF</div>
+    <h1>Reports</h1>
+    <div class="subtitle">Disaster response intelligence report, generated live from the current assessment data</div>
 
-    <div class="panel">
-      <label>Case Name</label>
-      <input type="text" id="case_name" value="assessment">
-      <label>Disaster Type</label>
-      <select id="disaster_type">
-        <option value="flood">Flood</option>
-        <option value="earthquake">Earthquake</option>
-        <option value="aircraft_crash">Aircraft Crash</option>
-        <option value="generic">Generic</option>
-      </select>
-      <button id="generateBtn" style="margin-top:18px;">Generate PDF Report</button>
-      <div id="reportResult" style="margin-top:16px;"></div>
+    <div class="report-root">
+      <div class="report-toolbar">
+        <div class="r-controls">
+          <select id="caseFilter"><option value="__all__">All assessed sites</option></select>
+          <select id="disasterTypeSelect">
+            <option value="flood">Flood</option>
+            <option value="earthquake">Earthquake</option>
+            <option value="aircraft_crash">Aircraft Crash</option>
+            <option value="generic" selected>Generic</option>
+          </select>
+        </div>
+        <div class="r-controls">
+          <button class="r-btn secondary" id="refreshBtn">Refresh</button>
+          <button class="r-btn secondary" id="printBtn">Print Report</button>
+          <button class="r-btn" id="downloadPdfBtn">Download PDF</button>
+        </div>
+      </div>
+
+      <div id="reportBody">
+        <div class="r-loading">Loading assessment data...</div>
+      </div>
     </div>
   </div>
 
