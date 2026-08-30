@@ -25,10 +25,10 @@ async function renderDashboard() {
     const totalPersonnel = sites.reduce((sum, s) => sum + (s.team_size?.total_personnel || 0), 0);
 
     cardsEl.innerHTML = `
-      <div class="card"><div class="label">Critical</div><div class="value" style="color:#e5484d">${counts.CRITICAL}</div></div>
-      <div class="card"><div class="label">High</div><div class="value" style="color:#ff9500">${counts.HIGH}</div></div>
-      <div class="card"><div class="label">Medium</div><div class="value" style="color:#f0c93a">${counts.MEDIUM}</div></div>
-      <div class="card"><div class="label">Low</div><div class="value" style="color:#33c07c">${counts.LOW}</div></div>
+      <div class="card critical"><div class="label">Critical</div><div class="value">${counts.CRITICAL}</div></div>
+      <div class="card high"><div class="label">High</div><div class="value">${counts.HIGH}</div></div>
+      <div class="card medium"><div class="label">Medium</div><div class="value">${counts.MEDIUM}</div></div>
+      <div class="card low"><div class="label">Low</div><div class="value">${counts.LOW}</div></div>
       <div class="card"><div class="label">Total Assessed</div><div class="value">${sites.length}</div></div>
       <div class="card"><div class="label">People Potentially Affected</div><div class="value" style="font-size:22px;">${totalPeople.toLocaleString()}</div></div>
       <div class="card"><div class="label">Personnel Needed</div><div class="value" style="font-size:22px;">${totalPersonnel}</div></div>
@@ -51,7 +51,7 @@ async function renderDashboard() {
       });
     });
   } catch (e) {
-    cardsEl.innerHTML = `<div class="card"><div class="label">Error</div><div class="value" style="font-size:14px;color:#e5484d">Could not reach API at ${API_BASE}. Is the backend running?</div></div>`;
+    cardsEl.innerHTML = `<div class="card critical"><div class="label">Error</div><div class="value" style="font-size:14px;">Could not reach API at ${API_BASE}. Is the backend running?</div></div>`;
   }
 }
 

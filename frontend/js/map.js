@@ -1,6 +1,6 @@
 const API_BASE_M = "/api";
 
-const LEVEL_COLORS = { CRITICAL: "#e5484d", HIGH: "#ff9500", MEDIUM: "#f0c93a", LOW: "#33c07c" };
+const LEVEL_COLORS = { CRITICAL: "#DC2626", HIGH: "#F97316", MEDIUM: "#F59E0B", LOW: "#16A34A" };
 
 let mainMap;
 let routePickMode = null; // "origin" | "destination" | null
@@ -44,7 +44,7 @@ async function initMap() {
     const bounds = [];
     sites.forEach(s => {
       if (!s.location || s.location.lat === undefined) return;
-      const color = LEVEL_COLORS[s.priority_level] || "#8ea0bd";
+      const color = LEVEL_COLORS[s.priority_level] || "#6B7280";
       const marker = L.circleMarker([s.location.lat, s.location.lon], {
         radius: 10, fillColor: color, color: "#fff", weight: 1, fillOpacity: 0.9,
       }).addTo(mainMap);
@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultEl = document.getElementById("routeResult");
 
     if ([originLat, originLon, destLat, destLon].some(isNaN)) {
-      resultEl.innerHTML = `<span style="color:#e5484d">Set both an origin and a destination first (use the buttons above, then click the map).</span>`;
+      resultEl.innerHTML = `<span style="color:#DC2626">Set both an origin and a destination first (use the buttons above, then click the map).</span>`;
       return;
     }
 
@@ -119,7 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div style="margin-top:14px; font-size:14px;"><b style="color:var(--accent-orange)">Recommended action:</b> ${blocked.recommended_action}</div>
       `;
     } catch (e) {
-      resultEl.innerHTML = `<span style="color:#e5484d">Could not calculate routes: ${e.message}</span>`;
+      resultEl.innerHTML = `<span style="color:#DC2626">Could not calculate routes: ${e.message}</span>`;
     }
   });
 });

@@ -17,6 +17,63 @@ DISCLAIMER = (
 )
 
 
+_LEVEL_COLOR_HEX = {
+    "CRITICAL": "#DC2626",
+    "HIGH": "#F97316",
+    "MEDIUM": "#F59E0B",
+    "LOW": "#16A34A",
+}
+
+
+def _risk_bar_chart(sites, value_fn, title, max_value=None, value_suffix=""):
+    """Horizontal bar chart, one bar per site, colored by that site's
+    priority_level -- same red/orange/amber/green convention as the web
+    report and the AI Assistant. Returns a reportlab Drawing, or None if
+    there's nothing to plot. This was previously entirely missing from the
+    PDF (only the web report had Chart.js bars) -- the PDF was tables only."""
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.graphics.charts.barcharts import HorizontalBarChart
+    from reportlab.lib import colors as rl_colors
+    from reportlab.lib.units import cm
+
+    ranked = sorted(sites, key=lambda s: -(value_fn(s) or 0))[:10]  # cap for readability
+    if not ranked:
+        return None
+
+    labels = [str(s.get("site_id", "?"))[:22] for s in ranked]
+    values = [value_fn(s) or 0 for s in ranked]
+    bar_colors = [rl_colors.HexColor(_LEVEL_COLOR_HEX.get(s.get("priority_level"), "#6B7280")) for s in ranked]
+
+    row_h = 16
+    height = max(60, row_h * len(ranked) + 30)
+    width = 420
+    drawing = Drawing(width, height + 20)
+    drawing.add(String(0, height + 4, title, fontSize=10, fontName="Helvetica-Bold", fillColor=rl_colors.HexColor("#111827")))
+
+    chart = HorizontalBarChart()
+    chart.x = 110
+    chart.y = 10
+    chart.width = width - 130
+    chart.height = height - 20
+    chart.data = [values]
+    chart.categoryAxis.categoryNames = labels
+    chart.categoryAxis.labels.fontSize = 7.5
+    chart.valueAxis.valueMin = 0
+    if max_value:
+        chart.valueAxis.valueMax = max_value
+    chart.valueAxis.labels.fontSize = 7
+    chart.bars[0].fillColor = rl_colors.HexColor("#F97316")
+    chart.barLabels.nudge = 6
+    chart.barLabelFormat = f"%s{value_suffix}"
+    chart.barLabels.fontSize = 7.5
+    # Per-bar coloring -- HorizontalBarChart supports styling individual
+    # bars via bars[(seriesIdx, barIdx)].
+    for i, c in enumerate(bar_colors):
+        chart.bars[(0, i)].fillColor = c
+    drawing.add(chart)
+    return drawing
+
+
 def generate_pdf_report(case_data: dict) -> str:
     """
     case_data: {
@@ -64,13 +121,40 @@ def generate_pdf_report(case_data: dict) -> str:
         ])
     table = Table(table_data, hAlign="LEFT")
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2a44")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
     ]))
     story.append(table)
     story.append(Spacer(1, 0.5 * cm))
+
+    # --- Visual Summary: the four bar charts the web report shows,
+    # now actually rendered into the PDF too (previously text/tables only).
+    sites_list = case_data.get("sites", [])
+    if sites_list:
+        story.append(Paragraph("Visual Summary", styles["Heading2"]))
+        severity_chart = _risk_bar_chart(
+            sites_list, lambda s: s.get("severity_score") or s.get("damage_severity"),
+            "Severity by Site (0-10)", max_value=10,
+        )
+        priority_chart = _risk_bar_chart(
+            sites_list, lambda s: s.get("priority_score"),
+            "Priority by Site (0-100)", max_value=100,
+        )
+        population_chart = _risk_bar_chart(
+            sites_list, lambda s: (s.get("population_data") or {}).get("estimated_affected_population"),
+            "Population Impact by Site",
+        )
+        team_chart = _risk_bar_chart(
+            sites_list, lambda s: (s.get("team_size") or {}).get("total_personnel"),
+            "Recommended Team Size by Site",
+        )
+        for chart in (severity_chart, priority_chart, population_chart, team_chart):
+            if chart is not None:
+                story.append(chart)
+                story.append(Spacer(1, 0.35 * cm))
+        story.append(Spacer(1, 0.3 * cm))
 
     if case_data.get("team_assignments"):
         story.append(Paragraph("Team Allocation", styles["Heading2"]))

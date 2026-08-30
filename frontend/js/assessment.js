@@ -44,7 +44,7 @@ function initLocationPicker() {
   const DemoControl = L.Control.extend({
     onAdd: function () {
       const div = L.DomUtil.create("div", "leaflet-bar");
-      div.style.background = "#141e30";
+      div.style.background = "#FFFFFF";
       div.style.padding = "4px";
       div.style.display = "flex";
       div.style.flexDirection = "column";
@@ -53,7 +53,7 @@ function initLocationPicker() {
         const btn = L.DomUtil.create("button", "", div);
         btn.textContent = name;
         btn.type = "button";
-        btn.style.cssText = "font-size:10.5px;padding:4px 8px;background:#1c2a44;color:#eef2f8;border:1px solid #263650;border-radius:5px;cursor:pointer;white-space:nowrap;";
+        btn.style.cssText = "font-size:10.5px;padding:4px 8px;background:#FFF7ED;color:#111827;border:1px solid #E5E7EB;border-radius:5px;cursor:pointer;white-space:nowrap;";
         L.DomEvent.on(btn, "click", (ev) => {
           L.DomEvent.stopPropagation(ev);
           pickerMap.setView([lat, lon], 12);
@@ -94,7 +94,7 @@ async function fetchPopulationPreview(lat, lon) {
       <div class="row"><span class="k">Households affected</span><span class="v">${Number(pop.households_affected).toLocaleString()}</span></div>
     `;
   } catch (e) {
-    box.innerHTML = `<span style="color:#e5484d">Could not fetch population data.</span>`;
+    box.innerHTML = `<span style="color:#DC2626">Could not fetch population data.</span>`;
   }
 }
 
@@ -184,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const vidCount = selectedFiles.filter(f => isVideoFile(f.name)).length;
     fileListEl.innerHTML = selectedFiles.map((f, i) => {
       const isVideo = isVideoFile(f.name);
-      return `<span class="file-chip">${isVideo ? "🎬" : "🖼️"} ${f.name} <a href="#" data-idx="${i}" style="color:#e5484d;text-decoration:none;">✕</a></span>`;
+      return `<span class="file-chip">${isVideo ? "🎬" : "🖼️"} ${f.name} <a href="#" data-idx="${i}" style="color:#DC2626;text-decoration:none;">✕</a></span>`;
     }).join("") + (selectedFiles.length ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">${imgCount} / ${MAX_IMAGES} photos, ${vidCount} / ${MAX_VIDEOS} videos selected</div>` : "");
 
     fileListEl.querySelectorAll("a[data-idx]").forEach(a => {
@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
       uploadStatus.textContent = `Done -- analyzed ${result.total_frames_analyzed} frame(s) across ${result.files_processed.length} file(s).`;
       renderResultCard(result);
     } catch (err) {
-      uploadStatus.innerHTML = `<span style="color:#e5484d">Analysis failed: ${err.message}</span>`;
+      uploadStatus.innerHTML = `<span style="color:#DC2626">Analysis failed: ${err.message}</span>`;
     } finally {
       analyzeBtn.disabled = false;
     }
@@ -237,9 +237,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderResultCard(r) {
-  const levelColors = { CRITICAL: "#e5484d", HIGH: "#ff9500", MEDIUM: "#f0c93a", LOW: "#33c07c" };
+  const levelColors = { CRITICAL: "#DC2626", HIGH: "#F97316", MEDIUM: "#F59E0B", LOW: "#16A34A" };
   const levelIcons = { CRITICAL: "🔴", HIGH: "🟠", MEDIUM: "🟡", LOW: "🟢" };
-  const color = levelColors[r.priority_level] || "#8ea0bd";
+  const color = levelColors[r.priority_level] || "#6B7280";
 
   const imgUrl = r.preview_image_path
     ? `${API_BASE_A}/preview-image?path=${encodeURIComponent(r.preview_image_path)}`
@@ -341,7 +341,7 @@ function renderResultCard(r) {
           <div class="stat-row"><span class="k">Damage</span><span class="v">${(r.dominant_damage_type || "-").replace(/_/g, " ")}</span></div>
           <div class="stat-row"><span class="k">Severity</span><span class="v">${r.severity_score} / 10 &middot; ${r.severity_score_100 ?? Math.round((r.severity_score || 0) * 10 * 10) / 10} / 100 (${r.severity_label})</span></div>
           <div class="stat-row"><span class="k">Priority</span><span class="v">${r.priority_score} / 100</span></div>
-          <div class="stat-row"><span class="k">Status</span><span class="v"><span class="status-pill" style="background:${color};color:#10131c;">${levelIcons[r.priority_level] || ""} ${r.priority_level}</span></span></div>
+          <div class="stat-row"><span class="k">Status</span><span class="v"><span class="status-pill" style="background:${color};color:#FFFFFF;">${levelIcons[r.priority_level] || ""} ${r.priority_level}</span></span></div>
           <div class="stat-row" style="margin-top:10px;"><span class="k">AI Confidence</span><span class="v">${(r.ai_confidence * 100).toFixed(0)}%</span></div>
           <div class="stat-row"><span class="k">Data Confidence</span><span class="v">${r.data_confidence_pct}%</span></div>
         </div>

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="css/style.css">
 <style>
   .chat-shell {
-    background: linear-gradient(160deg, var(--bg-panel), #101a2e);
+    background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
@@ -30,16 +30,16 @@
     padding: 6px 12px; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.03em; border-radius: 20px; cursor: pointer; box-shadow: none;
   }
-  .mode-btn:hover { transform: none; box-shadow: none; border-color: #3a4c6e; }
+  .mode-btn:hover { transform: none; box-shadow: none; border-color: var(--accent-orange-light); }
   .mode-btn.active { background: rgba(255, 122, 48, 0.14); border-color: var(--accent-orange); color: var(--text-primary); }
   .chat-log {
     flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
   }
   .msg { max-width: 78%; padding: 12px 15px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; }
-  .msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent-orange), #e85f1c); color: white; border-bottom-right-radius: 3px; }
-  .msg.bot { align-self: flex-start; background: var(--bg-panel-light); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-dark)); color: white; border-bottom-right-radius: 3px; }
+  .msg.bot { align-self: flex-start; background: var(--bg-page-tint); border: 1px solid var(--border); border-bottom-left-radius: 3px; color: var(--text-primary); }
   .msg.bot .meta { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); }
-  .msg.bot .meta .tag { display: inline-block; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 2px 8px; margin: 3px 4px 0 0; }
+  .msg.bot .meta .tag { display: inline-block; background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 2px 8px; margin: 3px 4px 0 0; }
   .msg.system { align-self: center; color: var(--text-secondary); font-size: 12px; text-align: center; max-width: 90%; }
   .chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 22px 14px 22px; }
   .suggestion-chip {
